@@ -64,8 +64,8 @@ export default function AppShell({
       {/* Bottom nav (mobile only) */}
       <BottomNavBar activePath={pathname} />
 
-      {/* Floating action button */}
-      {showFab && <FAB onClick={onFabClick} />}
+      {/* Floating action button — hidden on pages with their own add button */}
+      {showFab && pathname !== "/calendario" && pathname !== "/tareas" && <FAB onClick={onFabClick} />}
     </div>
   );
 }

@@ -8,65 +8,68 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { createClient } from "@/lib/supabase/client";
-import type { Area, NewEventForm } from "../_types";
-import { EMPTY_FORM } from "../_types";
+import type { NewTaskForm, TaskStatus, TaskPriority } from "../_types";
+import { EMPTY_TASK_FORM, COLUMNS } from "../_types";
 
 type OverlayState = ReturnType<typeof useOverlayState>;
+
+interface Area {
+  id: string;
+  name: string;
+}
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+}
 
 interface Props {
   state: OverlayState;
   areas: Area[];
+  defaultStatus: TaskStatus;
   resetKey: number;
   onCreated: () => void;
-}
-
-function toLocalDateTimeString(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function localNow(): string {
-  return toLocalDateTimeString(new Date());
-}
-
-function addOneHour(dateTimeLocal: string): string {
-  const d = new Date(dateTimeLocal);
-  d.setHours(d.getHours() + 1);
-  return toLocalDateTimeString(d);
 }
 
 const fieldClass =
   "w-full rounded-lg border border-[var(--color-outline-variant)] bg-transparent px-3 py-2 text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)] transition-colors";
 
-export default function AddEventModal({ state, areas, resetKey, onCreated }: Props) {
-  const supabase = createClient();
-  const [form, setForm] = useState<NewEventForm>(EMPTY_FORM);
+const supabase = createClient();
+
+export default function AddTaskModal({
+  state, areas, defaultStatus, resetKey, onCreated,
+}: Props) {
+  const [form, setForm] = useState<NewTaskForm>({ ...EMPTY_TASK_FORM, status: defaultStatus });
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("id, full_name")
+      .then(({ data }) => { if (data) setProfiles(data as Profile[]); });
+  }, []);
+
+  useEffect(() => {
     if (!resetKey) return;
-    const now = localNow();
-    setForm({ ...EMPTY_FORM, start_at: now, end_at: addOneHour(now), area_id: areas[0]?.id ?? "" });
+    setForm({ ...EMPTY_TASK_FORM, status: defaultStatus, area_id: areas[0]?.id ?? "" });
     setFormError(null);
-  }, [resetKey, areas]);
+  }, [resetKey, defaultStatus, areas]);
 
   async function handleSave() {
     if (!form.title.trim()) { setFormError("El título es obligatorio."); return; }
-    if (!form.start_at || !form.end_at) { setFormError("Las fechas son obligatorias."); return; }
-    if (new Date(form.end_at) <= new Date(form.start_at)) {
-      setFormError("La fecha de fin debe ser posterior al inicio."); return;
-    }
     setSaving(true);
     setFormError(null);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("events").insert({
+    const { error } = await supabase.from("tasks").insert({
       title: form.title.trim(),
       description: form.description.trim() || null,
-      start_at: new Date(form.start_at).toISOString(),
-      end_at: new Date(form.end_at).toISOString(),
+      priority: form.priority,
+      status: form.status,
       area_id: form.area_id || null,
-      meeting_link: form.meeting_link.trim() || null,
+      assigned_to: form.assigned_to || null,
+      due_date: form.due_date || null,
       created_by: user?.id ?? null,
     });
     setSaving(false);
@@ -81,7 +84,7 @@ export default function AddEventModal({ state, areas, resetKey, onCreated }: Pro
         <ModalContainer size="md">
           <ModalDialog>
             <ModalHeader>
-              <ModalHeading>Agregar Evento</ModalHeading>
+              <ModalHeading>Nueva Tarea</ModalHeading>
               <ModalCloseTrigger />
             </ModalHeader>
             <ModalBody>
@@ -90,7 +93,7 @@ export default function AddEventModal({ state, areas, resetKey, onCreated }: Pro
                   <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">Título *</label>
                   <input
                     className={fieldClass}
-                    placeholder="Nombre del evento"
+                    placeholder="Nombre de la tarea"
                     value={form.title}
                     onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                   />
@@ -99,11 +102,37 @@ export default function AddEventModal({ state, areas, resetKey, onCreated }: Pro
                   <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">Descripción</label>
                   <textarea
                     className={`${fieldClass} resize-none`}
-                    placeholder="Detalles del evento (opcional)"
+                    placeholder="Detalles de la tarea (opcional)"
                     rows={2}
                     value={form.description}
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">Prioridad</label>
+                    <select
+                      className={fieldClass}
+                      value={form.priority}
+                      onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as TaskPriority }))}
+                    >
+                      <option value="alta">Alta</option>
+                      <option value="media">Media</option>
+                      <option value="baja">Baja</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">Estado</label>
+                    <select
+                      className={fieldClass}
+                      value={form.status}
+                      onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as TaskStatus }))}
+                    >
+                      {COLUMNS.map((c) => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 {areas.length > 0 && (
                   <div className="flex flex-col gap-1">
@@ -120,38 +149,29 @@ export default function AddEventModal({ state, areas, resetKey, onCreated }: Pro
                     </select>
                   </div>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">Inicio *</label>
-                    <input
+                    <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">Asignada a</label>
+                    <select
                       className={fieldClass}
-                      type="datetime-local"
-                      value={form.start_at}
-                      onChange={(e) => setForm((f) => ({ ...f, start_at: e.target.value, end_at: addOneHour(e.target.value) }))}
-                    />
+                      value={form.assigned_to}
+                      onChange={(e) => setForm((f) => ({ ...f, assigned_to: e.target.value }))}
+                    >
+                      <option value="">Sin asignar</option>
+                      {profiles.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.full_name ?? p.id}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">Fin *</label>
+                    <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">Fecha límite</label>
                     <input
                       className={fieldClass}
-                      type="datetime-local"
-                      value={form.end_at}
-                      onChange={(e) => setForm((f) => ({ ...f, end_at: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">Link de reunión</label>
-                  <div className="relative">
-                    <Icon
-                      icon="material-symbols:video-call-outline"
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[var(--color-on-surface-variant)] pointer-events-none"
-                    />
-                    <input
-                      className={`${fieldClass} pl-9`}
-                      placeholder="https://meet.google.com/..."
-                      value={form.meeting_link}
-                      onChange={(e) => setForm((f) => ({ ...f, meeting_link: e.target.value }))}
+                      type="date"
+                      value={form.due_date}
+                      onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -172,7 +192,7 @@ export default function AddEventModal({ state, areas, resetKey, onCreated }: Pro
                 {saving && (
                   <Icon icon="material-symbols:progress-activity" className="text-lg animate-spin" />
                 )}
-                {saving ? "Guardando..." : "Guardar Evento"}
+                {saving ? "Guardando..." : "Guardar Tarea"}
               </Button>
             </ModalFooter>
           </ModalDialog>

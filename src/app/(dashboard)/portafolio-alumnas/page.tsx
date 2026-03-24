@@ -1,126 +1,335 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Chip, Avatar, AvatarFallback } from "@heroui/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Button, Avatar, AvatarFallback, useOverlayState } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { createClient } from "@/lib/supabase/client";
+import {
+  type Student,
+  type Generation,
+  type StudentStatus,
+  STATUS_LABELS,
+  STATUS_COLORS,
+} from "./_types";
+import StudentModal from "./_components/StudentModal";
+import CsvUploadModal from "./_components/CsvUploadModal";
+import GenerationModal from "./_components/GenerationModal";
 
-type Status = "Activa" | "Egresada" | "Baja";
+const supabase = createClient();
 
-interface Student {
-  id: number;
-  name: string;
-  initials: string;
-  curp: string;
-  email: string;
-  phone: string;
-  enrolled: string;
-  status: Status;
-  gen: string;
+const STATUS_FILTER_OPTIONS: (StudentStatus | "todas")[] = ["todas", "activa", "egresada", "baja"];
+
+const PER_PAGE = 10;
+
+// ── Inline status dropdown ────────────────────────────────────────────────────
+function StatusCell({
+  student,
+  onUpdate,
+}: {
+  student: Student;
+  onUpdate: (id: string, status: StudentStatus) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const sc = STATUS_COLORS[student.status];
+
+  useEffect(() => {
+    if (!open) return;
+    function onOutside(e: MouseEvent) {
+      if (btnRef.current && !btnRef.current.closest("[data-status-cell]")?.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [open]);
+
+  function handleOpen(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    setCoords({ top: rect.bottom + 4, left: rect.left });
+    setOpen((v) => !v);
+  }
+
+  return (
+    <div data-status-cell="true" className="relative">
+      <button
+        ref={btnRef}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={handleOpen}
+        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-opacity hover:opacity-80 cursor-pointer"
+        style={{ backgroundColor: sc.bg, color: sc.color }}
+      >
+        {STATUS_LABELS[student.status]}
+        <Icon icon="material-symbols:arrow-drop-down" className="text-sm -mr-0.5" />
+      </button>
+
+      {open && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          className="fixed z-50 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-lg py-1 min-w-[130px]"
+          style={{ top: coords.top, left: coords.left }}
+        >
+          {(Object.entries(STATUS_LABELS) as [StudentStatus, string][]).map(([val, label]) => {
+            const c = STATUS_COLORS[val];
+            return (
+              <button
+                key={val}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  onUpdate(student.id, val);
+                }}
+                className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-[var(--color-surface-container-low)] transition-colors ${val === student.status ? "font-semibold" : ""}`}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
-const statusChipProps: Record<Status, { color: string; bg: string }> = {
-  Activa: { color: "var(--color-primary)", bg: "var(--color-primary-fixed)" },
-  Egresada: { color: "var(--color-on-surface-variant)", bg: "var(--color-surface-container)" },
-  Baja: { color: "var(--color-error)", bg: "var(--color-error-container)" },
-};
-
-const generations = ["2022", "2023", "2024", "2025"];
-const statusFilters: (Status | "Todas")[] = ["Todas", "Activa", "Egresada", "Baja"];
-const TABS = ["Perfil General", "Asistencia", "Historial"];
-
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function PortafolioAlumnasPage() {
   const [students, setStudents] = useState<Student[]>([]);
-  const [activeGen, setActiveGen] = useState("2025");
-  const [activeStatus, setActiveStatus] = useState<Status | "Todas">("Todas");
+  const [generations, setGenerations] = useState<Generation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeGen, setActiveGen] = useState<string>("");
+  const [activeStatus, setActiveStatus] = useState<StudentStatus | "todas">("todas");
   const [search, setSearch] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [drawerTab, setDrawerTab] = useState(0);
   const [page, setPage] = useState(1);
-  const perPage = 5;
 
+  const [editStudent, setEditStudent] = useState<Student | null>(null);
+  const studentModalState = useOverlayState();
+  const csvModalState = useOverlayState();
+  const genModalState = useOverlayState();
+
+  // ── Fetch data ─────────────────────────────────────────────────────────────
+  const fetchStudentsRef = useRef<() => void>(() => {});
+  const fetchStudents = useCallback(async () => {
+    const { data } = await supabase
+      .from("students")
+      .select("*")
+      .order("full_name", { ascending: true });
+    if (data) setStudents(data as Student[]);
+  }, []);
+  fetchStudentsRef.current = fetchStudents;
+
+  const fetchGenerations = useCallback(async () => {
+    const { data } = await supabase
+      .from("generations")
+      .select("*")
+      .order("name", { ascending: false });
+    if (data && data.length > 0) {
+      setGenerations(data as Generation[]);
+      setActiveGen((prev) => prev || (data[0] as Generation).name);
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([fetchStudents(), fetchGenerations()]).finally(() => setLoading(false));
+  }, [fetchStudents, fetchGenerations]);
+
+  // ── Realtime ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel("students-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "students" }, () => {
+        fetchStudentsRef.current();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // ── Filter + paginate ──────────────────────────────────────────────────────
   const filtered = students.filter((s) => {
-    const matchGen = s.gen === activeGen;
-    const matchStatus = activeStatus === "Todas" || s.status === activeStatus;
-    const matchSearch = s.name.toLowerCase().includes(search.toLowerCase());
+    const matchGen = !activeGen || s.generation === activeGen;
+    const matchStatus = activeStatus === "todas" || s.status === activeStatus;
+    const q = search.toLowerCase();
+    const matchSearch =
+      !q ||
+      s.full_name.toLowerCase().includes(q) ||
+      (s.email ?? "").toLowerCase().includes(q) ||
+      (s.city ?? "").toLowerCase().includes(q);
     return matchGen && matchStatus && matchSearch;
   });
 
-  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  function changeGen(name: string) {
+    setActiveGen(name);
+    setPage(1);
+  }
+
+  function changeSearch(val: string) {
+    setSearch(val);
+    setPage(1);
+  }
+
+  function changeStatus(val: StudentStatus | "todas") {
+    setActiveStatus(val);
+    setPage(1);
+  }
+
+  function openAdd() {
+    setEditStudent(null);
+    studentModalState.open();
+  }
+
+  function openEdit(student: Student) {
+    setEditStudent(student);
+    studentModalState.open();
+  }
+
+  // ── Optimistic status update ───────────────────────────────────────────────
+  async function updateStatus(id: string, status: StudentStatus) {
+    const prev = students.find((s) => s.id === id);
+    setStudents((list) => list.map((s) => (s.id === id ? { ...s, status } : s)));
+    const { error } = await supabase.from("students").update({ status }).eq("id", id);
+    if (error && prev) setStudents((list) => list.map((s) => (s.id === id ? prev : s)));
+  }
+
+  // ── Generation created callback ────────────────────────────────────────────
+  async function onGenerationCreated(name: string) {
+    await fetchGenerations();
+    setActiveGen(name);
+    setPage(1);
+  }
+
+  // ── Initials helper ────────────────────────────────────────────────────────
+  function initials(name: string) {
+    return name
+      .split(" ")
+      .slice(0, 2)
+      .map((w) => w[0] ?? "")
+      .join("")
+      .toUpperCase();
+  }
 
   return (
-    <div className={`p-4 md:p-6 transition-all ${selectedStudent ? "lg:pr-[500px]" : ""}`}>
-      {/* Generation tabs */}
-      <div className="flex border-b border-[var(--color-outline-variant)] mb-4">
+    <div className="p-4 md:p-6">
+      {/* Generation tabs + new generation button */}
+      <div className="flex items-center border-b border-[var(--color-outline-variant)] mb-4 gap-1">
         {generations.map((g) => (
           <button
-            key={g}
-            onClick={() => { setActiveGen(g); setPage(1); }}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeGen === g
+            key={g.id}
+            onClick={() => changeGen(g.name)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeGen === g.name
                 ? "border-[var(--color-primary)] text-[var(--color-primary)]"
                 : "border-transparent text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]"
             }`}
           >
-            Gen {g}
+            {g.label ?? `Gen ${g.name}`}
           </button>
         ))}
+        {loading && generations.length === 0 && (
+          <div className="flex gap-2 px-2 pb-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-4 w-14 rounded bg-[var(--color-outline-variant)] animate-pulse" />
+            ))}
+          </div>
+        )}
+        <button
+          onClick={() => genModalState.open()}
+          className="ml-1 mb-[2px] flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container-low)] hover:text-[var(--color-primary)] transition-colors"
+          title="Nueva generación"
+        >
+          <Icon icon="material-symbols:add" className="text-base" />
+          Nueva
+        </button>
       </div>
 
-      {/* Search + status filters */}
+      {/* Search + status filters + actions */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative max-w-xs">
-          <Icon icon="material-symbols:search-outline" className="absolute left-2.5 top-2 text-[var(--color-on-surface-variant)] text-lg pointer-events-none" />
+          <Icon
+            icon="material-symbols:search-outline"
+            className="absolute left-2.5 top-2 text-[var(--color-on-surface-variant)] text-lg pointer-events-none"
+          />
           <input
             type="search"
-            placeholder="Buscar alumna..."
+            placeholder="Buscar alumna…"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => changeSearch(e.target.value)}
             className="h-9 pl-9 pr-3 w-full rounded-xl border border-[var(--color-outline-variant)] bg-white text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
           />
         </div>
+
         <div className="flex gap-2 flex-wrap">
-          {statusFilters.map((s) => (
+          {STATUS_FILTER_OPTIONS.map((s) => (
             <button
               key={s}
-              onClick={() => { setActiveStatus(s); setPage(1); }}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+              onClick={() => changeStatus(s)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
                 activeStatus === s
                   ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-white"
                   : "border-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)] hover:border-[var(--color-primary)]"
               }`}
             >
-              {s}
+              {s === "todas" ? "Todas" : STATUS_LABELS[s]}
             </button>
           ))}
         </div>
-        <Button
-          className="sm:ml-auto bg-[var(--color-primary)] text-white"
-          size="sm"
-        >
-          <Icon icon="material-symbols:person-add-outline" className="text-lg" />
-          Agregar Alumna
-        </Button>
+
+        <div className="flex gap-2 sm:ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)]"
+            onPress={() => csvModalState.open()}
+          >
+            <Icon icon="material-symbols:upload-file-outline" className="text-base" />
+            Importar CSV
+          </Button>
+          <Button
+            className="bg-[var(--color-primary)] text-white"
+            size="sm"
+            onPress={openAdd}
+          >
+            <Icon icon="material-symbols:person-add-outline" className="text-base" />
+            Agregar alumna
+          </Button>
+        </div>
       </div>
 
-      {/* Native table */}
+      {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-[var(--color-outline-variant)]">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[var(--color-surface-container-low)]">
               <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-on-surface-variant)]">ALUMNA</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-on-surface-variant)]">CURP</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-on-surface-variant)] hidden md:table-cell">CONTACTO</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-on-surface-variant)] hidden sm:table-cell">INSCRIPCIÓN</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-on-surface-variant)] hidden lg:table-cell">CORREO</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-on-surface-variant)] hidden sm:table-cell">CIUDAD</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-on-surface-variant)]">ESTADO</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-on-surface-variant)]">ACCIONES</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-on-surface-variant)]"></th>
             </tr>
           </thead>
           <tbody>
-            {paginated.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="border-t border-[var(--color-outline-variant)]">
+                  {[160, 180, 90, 70, 60].map((w, j) => (
+                    <td key={j} className="px-4 py-3">
+                      <div className="h-3 rounded animate-pulse bg-[var(--color-outline-variant)]" style={{ width: w }} />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : paginated.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-8 text-[var(--color-on-surface-variant)] text-sm">
-                  No se encontraron alumnas
+                <td colSpan={5} className="text-center py-12 text-[var(--color-on-surface-variant)] text-sm">
+                  {students.length === 0
+                    ? "No hay alumnas registradas en esta generación."
+                    : "No se encontraron alumnas con ese criterio."}
                 </td>
               </tr>
             ) : (
@@ -128,45 +337,39 @@ export default function PortafolioAlumnasPage() {
                 <tr
                   key={s.id}
                   className="border-t border-[var(--color-outline-variant)] hover:bg-[var(--color-surface-container-low)] transition-colors cursor-pointer"
-                  onClick={() => setSelectedStudent(s)}
+                  onClick={() => openEdit(s)}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <Avatar
-                        size="sm"
-                        className="bg-[var(--color-secondary-container)]"
-                      >
-                        <AvatarFallback className="text-[var(--color-on-secondary-container)] text-xs">{s.initials}</AvatarFallback>
+                      <Avatar size="sm" className="bg-[var(--color-secondary-container)] flex-shrink-0">
+                        <AvatarFallback className="text-[var(--color-on-secondary-container)] text-xs font-medium">
+                          {initials(s.full_name)}
+                        </AvatarFallback>
                       </Avatar>
-                      <span className="font-medium text-[var(--color-on-surface)]">{s.name}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--color-on-surface)] truncate">{s.full_name}</p>
+                        <p className="text-xs text-[var(--color-on-surface-variant)] sm:hidden truncate">{s.city ?? s.email ?? "—"}</p>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs text-[var(--color-on-surface-variant)] font-mono">{s.curp}</span>
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell">
-                    <span className="text-xs text-[var(--color-on-surface-variant)]">{s.email}</span>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <span className="text-xs text-[var(--color-on-surface-variant)]">{s.email ?? "—"}</span>
                   </td>
                   <td className="px-4 py-3 hidden sm:table-cell">
-                    <span className="text-xs text-[var(--color-on-surface-variant)]">{s.enrolled}</span>
+                    <span className="text-xs text-[var(--color-on-surface-variant)]">{s.city ?? "—"}</span>
+                  </td>
+                  <td className="px-4 py-3" onPointerDown={(e) => e.stopPropagation()}>
+                    <StatusCell student={s} onUpdate={updateStatus} />
                   </td>
                   <td className="px-4 py-3">
-                    <Chip
-                      size="sm"
-                      style={{ backgroundColor: statusChipProps[s.status].bg, color: statusChipProps[s.status].color }}
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); openEdit(s); }}
+                      className="p-1 rounded text-[var(--color-on-surface-variant)] hover:text-[var(--color-primary)] transition-colors"
+                      title="Editar"
                     >
-                      {s.status}
-                    </Chip>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      <Button isIconOnly variant="ghost" size="sm" className="text-[var(--color-on-surface-variant)]">
-                        <Icon icon="material-symbols:visibility-outline" className="text-base" />
-                      </Button>
-                      <Button isIconOnly variant="ghost" size="sm" className="text-[var(--color-on-surface-variant)]">
-                        <Icon icon="material-symbols:edit-outline" className="text-base" />
-                      </Button>
-                    </div>
+                      <Icon icon="material-symbols:edit-outline" className="text-base" />
+                    </button>
                   </td>
                 </tr>
               ))
@@ -175,23 +378,22 @@ export default function PortafolioAlumnasPage() {
         </table>
       </div>
 
-      {/* Simple pagination */}
+      {/* Pagination */}
       <div className="flex items-center justify-between mt-4">
         <p className="text-xs text-[var(--color-on-surface-variant)]">
-          {filtered.length === 0 ? "0" : `${(page - 1) * perPage + 1}–${Math.min(page * perPage, filtered.length)}`} de {filtered.length}
+          {filtered.length === 0
+            ? "0 alumnas"
+            : `${(page - 1) * PER_PAGE + 1}–${Math.min(page * PER_PAGE, filtered.length)} de ${filtered.length}`}
         </p>
         <div className="flex items-center gap-1">
-          <Button
-            isIconOnly
-            variant="outline"
-            size="sm"
-            isDisabled={page === 1}
-            onPress={() => setPage((p) => p - 1)}
-            className="border-[var(--color-outline-variant)]"
+          <button
+            disabled={page === 1}
+            onClick={() => setPage((p) => p - 1)}
+            className="w-8 h-8 rounded-lg border border-[var(--color-outline-variant)] flex items-center justify-center disabled:opacity-40 hover:bg-[var(--color-surface-container-low)] transition-colors"
           >
             <Icon icon="material-symbols:chevron-left" className="text-lg" />
-          </Button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+          </button>
+          {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => i + 1).map((p) => (
             <button
               key={p}
               onClick={() => setPage(p)}
@@ -204,112 +406,33 @@ export default function PortafolioAlumnasPage() {
               {p}
             </button>
           ))}
-          <Button
-            isIconOnly
-            variant="outline"
-            size="sm"
-            isDisabled={page === totalPages}
-            onPress={() => setPage((p) => p + 1)}
-            className="border-[var(--color-outline-variant)]"
+          <button
+            disabled={page === totalPages}
+            onClick={() => setPage((p) => p + 1)}
+            className="w-8 h-8 rounded-lg border border-[var(--color-outline-variant)] flex items-center justify-center disabled:opacity-40 hover:bg-[var(--color-surface-container-low)] transition-colors"
           >
             <Icon icon="material-symbols:chevron-right" className="text-lg" />
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Right drawer */}
-      {selectedStudent && (
-        <div className="fixed inset-y-0 right-0 z-50 w-[480px] max-w-full bg-[var(--color-surface-container-lowest)] border-l border-[var(--color-outline-variant)] flex flex-col shadow-2xl">
-          <div className="flex items-center gap-4 px-6 py-5 border-b border-[var(--color-outline-variant)]">
-            <div className="w-12 h-12 rounded-2xl bg-[var(--color-primary-container)] flex items-center justify-center">
-              <Icon icon="material-symbols:school-outline" className="text-2xl text-[var(--color-primary)]" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-[var(--color-on-surface)]">{selectedStudent.name}</p>
-              <p className="text-sm text-[var(--color-on-surface-variant)]">Gen {selectedStudent.gen}</p>
-            </div>
-            <Button isIconOnly variant="ghost" size="sm" onPress={() => setSelectedStudent(null)} className="text-[var(--color-on-surface-variant)]">
-              <Icon icon="material-symbols:close" className="text-xl" />
-            </Button>
-          </div>
-
-          {/* Drawer tabs */}
-          <div className="flex border-b border-[var(--color-outline-variant)]">
-            {TABS.map((tab, i) => (
-              <button
-                key={tab}
-                onClick={() => setDrawerTab(i)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  drawerTab === i
-                    ? "border-[var(--color-primary)] text-[var(--color-primary)]"
-                    : "border-transparent text-[var(--color-on-surface-variant)]"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            {drawerTab === 0 && (
-              <div className="space-y-4">
-                {[
-                  { label: "Nombre completo", value: selectedStudent.name },
-                  { label: "CURP", value: selectedStudent.curp },
-                  { label: "Correo electrónico", value: selectedStudent.email },
-                  { label: "Teléfono", value: selectedStudent.phone },
-                  { label: "Fecha de inscripción", value: selectedStudent.enrolled },
-                ].map((f) => (
-                  <div key={f.label} className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-[var(--color-on-surface-variant)]">{f.label}</label>
-                    <input
-                      type="text"
-                      defaultValue={f.value}
-                      className="h-9 px-3 rounded-xl border border-[var(--color-outline-variant)] bg-white text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-            {drawerTab === 1 && (
-              <p className="py-4 text-sm text-[var(--color-on-surface-variant)]">Historial de asistencia próximamente.</p>
-            )}
-            {drawerTab === 2 && (
-              <p className="py-4 text-sm text-[var(--color-on-surface-variant)]">Historial académico próximamente.</p>
-            )}
-
-            {drawerTab === 0 && (
-              <div className="mt-4">
-                <p className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Documentos</p>
-                <div className="space-y-2">
-                  {["Acta de nacimiento", "CURP", "Comprobante de domicilio"].map((doc) => (
-                    <div key={doc} className="flex items-center gap-3 p-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)]">
-                      <Icon icon="material-symbols:description-outline" className="text-[var(--color-primary)] text-xl" />
-                      <span className="flex-1 text-sm text-[var(--color-on-surface)]">{doc}</span>
-                      <Button isIconOnly variant="ghost" size="sm" className="text-[var(--color-on-surface-variant)]">
-                        <Icon icon="material-symbols:download-outline" className="text-base" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                <button className="mt-3 flex items-center gap-2 w-full border-2 border-dashed border-[var(--color-outline-variant)] rounded-xl p-4 text-[var(--color-on-surface-variant)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors">
-                  <Icon icon="material-symbols:upload-file-outline" className="text-xl" />
-                  <span className="text-sm">Subir documento</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-3 px-6 py-4 border-t border-[var(--color-outline-variant)]">
-            <Button variant="outline" className="flex-1 border-[var(--color-outline-variant)]" onPress={() => setSelectedStudent(null)}>
-              Descartar
-            </Button>
-            <Button className="flex-1 bg-[var(--color-primary)] text-white">
-              Guardar Cambios
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Modals */}
+      <StudentModal
+        state={studentModalState}
+        generations={generations}
+        student={editStudent}
+        onSaved={() => fetchStudents()}
+        onDeleted={() => fetchStudents()}
+      />
+      <CsvUploadModal
+        state={csvModalState}
+        activeGeneration={activeGen}
+        onImported={() => fetchStudents()}
+      />
+      <GenerationModal
+        state={genModalState}
+        onCreated={onGenerationCreated}
+      />
     </div>
   );
 }

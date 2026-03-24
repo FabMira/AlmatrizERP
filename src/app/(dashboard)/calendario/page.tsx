@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Chip, Skeleton, useOverlayState } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { createClient } from "@/lib/supabase/client";
@@ -15,8 +15,9 @@ const MONTH_NAMES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
+const supabase = createClient();
+
 export default function CalendarioPage() {
-  const supabase = createClient();
 
   const [events, setEvents] = useState<Event[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
@@ -68,13 +69,16 @@ export default function CalendarioPage() {
 
   // ── Realtime ───────────────────────────────────────────────────────────────
 
+  const fetchEventsRef = useRef(fetchEvents);
+  useEffect(() => { fetchEventsRef.current = fetchEvents; }, [fetchEvents]);
+
   useEffect(() => {
     const channel = supabase
       .channel("events-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => fetchEvents())
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => fetchEventsRef.current())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchEvents]);
+  }, []); // set up once — ref keeps the callback current
 
   // ── Month navigation ───────────────────────────────────────────────────────
 

@@ -28,8 +28,8 @@ export default function SideNavBar({ activePath }: SideNavBarProps) {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      setEmail(data.user?.email ?? null);
+    supabase.auth.getSession().then(({ data }) => {
+      setEmail(data.session?.user?.email ?? null);
     });
   }, []);
 

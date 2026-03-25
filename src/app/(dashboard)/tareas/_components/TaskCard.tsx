@@ -5,11 +5,9 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Avatar, AvatarFallback, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { createClient } from "@/lib/supabase/client";
-import type { Task, TaskActivity } from "../_types";
-import { PRIORITY_COLORS, STATUS_LABELS, STATUS_ORDER } from "../_types";
-
-const supabase = createClient();
+import { createClient } from "@/infrastructure/supabase/client";
+import type { Task, TaskActivity, TaskStatus } from "@/domain/tasks/types";
+import { PRIORITY_COLORS, STATUS_LABELS, STATUS_ORDER } from "@/domain/tasks/constants";
 
 const PRIORITY_LABELS: Record<string, string> = {
   alta: "Alta",
@@ -383,7 +381,7 @@ export function TaskCardContent({
                       )}
                       <div className="space-y-3">
                         {activities.map((activity) => {
-                          const statusKey = activity.new_status ?? "";
+                          const statusKey = (activity.new_status ?? "") as TaskStatus;
                           const dotColor = STATUS_DOT_COLORS[statusKey] ?? "var(--color-outline)";
                           const label =
                             activity.event_type === "created"
@@ -458,6 +456,7 @@ export function DraggableTaskCard({
     const key = `${task.id}:${task.status}`;
     if (cacheKeyRef.current === key) return;
     setActivitiesLoading(true);
+    const supabase = createClient();
     supabase
       .from("task_activities")
       .select("*")

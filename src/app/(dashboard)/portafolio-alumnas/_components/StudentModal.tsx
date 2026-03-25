@@ -15,14 +15,13 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { createClient } from "@/lib/supabase/client";
 import {
-  type Student,
-  type Generation,
-  type StudentForm,
-  EMPTY_STUDENT_FORM,
-  STATUS_LABELS,
-} from "../_types";
+  createStudentAction,
+  updateStudentAction,
+  deleteStudentAction,
+} from "@/actions/student.actions";
+import type { Student, Generation, StudentForm } from "@/domain/students/types";
+import { EMPTY_STUDENT_FORM, STATUS_LABELS } from "@/domain/students/constants";
 
 type OverlayState = ReturnType<typeof useOverlayState>;
 
@@ -36,8 +35,6 @@ interface Props {
 
 const fieldClass =
   "w-full rounded-lg border border-[var(--color-outline-variant)] bg-transparent px-3 py-2 text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)] transition-colors";
-
-const supabase = createClient();
 
 export default function StudentModal({ state, generations, student, onSaved, onDeleted }: Props) {
   const isEdit = !!student;
@@ -73,27 +70,13 @@ export default function StudentModal({ state, generations, student, onSaved, onD
   }
 
   async function handleSave() {
-    if (!form.full_name.trim()) { setError("El nombre completo es obligatorio."); return; }
-    if (!form.generation) { setError("La generación es obligatoria."); return; }
     setSaving(true);
     setError(null);
-
-    const payload = {
-      full_name: form.full_name.trim(),
-      email: form.email.trim() || null,
-      phone: form.phone.trim() || null,
-      city: form.city.trim() || null,
-      generation: form.generation,
-      status: form.status,
-      notes: form.notes.trim() || null,
-    };
-
-    const { error: dbErr } = isEdit
-      ? await supabase.from("students").update(payload).eq("id", student!.id)
-      : await supabase.from("students").insert(payload);
-
+    const result = isEdit
+      ? await updateStudentAction(student!.id, form)
+      : await createStudentAction(form);
     setSaving(false);
-    if (dbErr) { setError("Error al guardar. Intenta de nuevo."); return; }
+    if (result.error) { setError(result.error); return; }
     state.close();
     onSaved();
   }
@@ -101,7 +84,7 @@ export default function StudentModal({ state, generations, student, onSaved, onD
   async function handleDelete() {
     if (!student) return;
     setDeleting(true);
-    await supabase.from("students").delete().eq("id", student.id);
+    await deleteStudentAction(student.id);
     setDeleting(false);
     state.close();
     onDeleted?.();

@@ -4,15 +4,7 @@ import { useState } from "react";
 import { Button, Chip, Card, CardContent } from "@heroui/react";
 import { Icon } from "@iconify/react";
 
-interface Link {
-  id: number;
-  title: string;
-  description: string;
-  url: string;
-  category: string;
-  icon: string;
-  pinned?: boolean;
-}
+import type { Link } from "@/domain/links/types";
 
 const categories = ["Todas", "Administración", "Área Académica", "Servicios", "Gestión y Marketing"];
 

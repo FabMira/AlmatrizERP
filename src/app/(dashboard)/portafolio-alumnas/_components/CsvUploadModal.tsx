@@ -15,62 +15,15 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { createClient } from "@/lib/supabase/client";
+import { importStudentsCsvAction } from "@/actions/student.actions";
+import { parseCSV, type ParsedRow } from "@/infrastructure/parsers/csv-parser";
 
 type OverlayState = ReturnType<typeof useOverlayState>;
-
-interface ParsedRow {
-  full_name: string;
-  phone: string;
-  email: string;
-  city: string;
-  valid: boolean;
-  error?: string;
-}
 
 interface Props {
   state: OverlayState;
   activeGeneration: string;
   onImported: () => void;
-}
-
-const supabase = createClient();
-
-function parseCSV(text: string): ParsedRow[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  if (lines.length === 0) return [];
-
-  // Detect header row: skip if first cell looks like a label, not a name
-  const firstCells = lines[0].split(",").map((c) => c.trim().toLowerCase());
-  const hasHeader =
-    firstCells.some((c) => ["nombre", "name", "full_name"].includes(c));
-  const dataLines = hasHeader ? lines.slice(1) : lines;
-
-  return dataLines
-    .filter((l) => l.trim())
-    .map((line) => {
-      // Handle quoted fields
-      const cells: string[] = [];
-      let cur = "";
-      let inQuotes = false;
-      for (const ch of line) {
-        if (ch === '"') { inQuotes = !inQuotes; continue; }
-        if (ch === "," && !inQuotes) { cells.push(cur.trim()); cur = ""; continue; }
-        cur += ch;
-      }
-      cells.push(cur.trim());
-
-      const [nombre = "", telefono = "", email = "", ciudad = ""] = cells;
-      const valid = nombre.trim().length > 0;
-      return {
-        full_name: nombre.trim(),
-        phone: telefono.trim(),
-        email: email.trim(),
-        city: ciudad.trim(),
-        valid,
-        error: valid ? undefined : "Nombre requerido",
-      };
-    });
 }
 
 export default function CsvUploadModal({ state, activeGeneration, onImported }: Props) {
@@ -116,19 +69,17 @@ export default function CsvUploadModal({ state, activeGeneration, onImported }: 
     const validRows = rows.filter((r) => r.valid);
     if (!validRows.length) return;
     setImporting(true);
-    const payload = validRows.map((r) => ({
-      full_name: r.full_name,
-      phone: r.phone || null,
-      email: r.email || null,
-      city: r.city || null,
-      generation: activeGeneration,
-      status: "activa" as const,
-    }));
-
-    const { error } = await supabase.from("students").insert(payload);
+    const result = await importStudentsCsvAction(
+      validRows.map((r) => ({
+        full_name: r.full_name,
+        phone: r.phone || null,
+        email: r.email || null,
+        city: r.city || null,
+        generation: activeGeneration,
+      }))
+    );
     setImporting(false);
-
-    if (error) {
+    if (result.error) {
       setImportResult({ ok: 0, fail: validRows.length });
     } else {
       setImportResult({ ok: validRows.length, fail: rows.length - validRows.length });

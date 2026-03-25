@@ -14,7 +14,7 @@ import {
   ModalCloseTrigger,
   useOverlayState,
 } from "@heroui/react";
-import { createClient } from "@/lib/supabase/client";
+import { createGenerationAction } from "@/actions/generation.actions";
 
 type OverlayState = ReturnType<typeof useOverlayState>;
 
@@ -25,8 +25,6 @@ interface Props {
 
 const fieldClass =
   "w-full rounded-lg border border-[var(--color-outline-variant)] bg-transparent px-3 py-2 text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)] transition-colors";
-
-const supabase = createClient();
 
 export default function GenerationModal({ state, onCreated }: Props) {
   const [name, setName] = useState("");
@@ -43,21 +41,13 @@ export default function GenerationModal({ state, onCreated }: Props) {
   }, [state.isOpen]);
 
   async function handleSave() {
-    const trimmed = name.trim();
-    if (!trimmed) { setError("El nombre de la generación es obligatorio."); return; }
     setSaving(true);
     setError(null);
-    const { error: dbErr } = await supabase.from("generations").insert({
-      name: trimmed,
-      label: label.trim() || null,
-    });
+    const result = await createGenerationAction(name, label || null);
     setSaving(false);
-    if (dbErr) {
-      setError(dbErr.code === "23505" ? "Ya existe una generación con ese nombre." : "Error al guardar. Intenta de nuevo.");
-      return;
-    }
+    if (result.error) { setError(result.error); return; }
     state.close();
-    onCreated(trimmed);
+    onCreated(name.trim());
   }
 
   return (

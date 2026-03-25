@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button, Skeleton, useOverlayState } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import {
@@ -11,21 +11,17 @@ import {
   closestCenter,
   useSensor,
   useSensors,
-  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { createClient } from "@/lib/supabase/client";
-import type { Task, TaskStatus } from "./_types";
-import { COLUMNS, STATUS_ORDER } from "./_types";
+import { useTasks } from "@/hooks/use-tasks";
+import { useAreas } from "@/hooks/use-areas";
+import { useProfiles } from "@/hooks/use-profiles";
+import type { Task, TaskStatus } from "@/domain/tasks/types";
+import { COLUMNS } from "@/domain/tasks/constants";
 import AddTaskModal from "./_components/AddTaskModal";
 import { DraggableTaskCard, TaskCardContent } from "./_components/TaskCard";
-
-interface Area {
-  id: string;
-  name: string;
-  color: string;
-}
+import DroppableColumn from "./_components/DroppableColumn";
 
 
 const priorities = [
@@ -42,32 +38,12 @@ const columnHeaderColors = [
   "text-[var(--color-primary)]",
 ];
 
-const supabase = createClient();
-
-/** Wraps a column's card list with a droppable zone, highlighting it when a card hovers over */
-function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`space-y-3 flex-1 min-h-[80px] rounded-xl p-1 -m-1 transition-all duration-200 ${
-        isOver
-          ? "ring-2 ring-inset ring-[var(--color-primary)] bg-[var(--color-primary)]/5"
-          : ""
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
-
 export default function TareasPage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
+  const { tasks, loading, fetchTasks, updateStatus, moveTask, deleteTask, reopenTask } = useTasks();
+  const { areas } = useAreas();
+  const { profilesMap } = useProfiles();
   const [activeAreaId, setActiveAreaId] = useState("all");
   const [activePriority, setActivePriority] = useState("all");
-  const [loading, setLoading] = useState(true);
   const [addResetKey, setAddResetKey] = useState(0);
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>("pendiente");
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
@@ -79,94 +55,6 @@ export default function TareasPage() {
   );
 
   const addModal = useOverlayState();
-
-  // ── Data fetching ──────────────────────────────────────────────────────────
-
-  const fetchTasks = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("tasks")
-      .select("*, areas(id, name, color)")
-      .order("created_at", { ascending: false });
-    if (!error && data) setTasks(data as Task[]);
-    setLoading(false);
-  }, []);
-
-  const fetchAreas = useCallback(async () => {
-    const { data } = await supabase.from("areas").select("*");
-    if (data) setAreas(data as Area[]);
-  }, []);
-
-  const fetchProfiles = useCallback(async () => {
-    const { data } = await supabase.from("profiles").select("id, full_name");
-    if (data) {
-      const map: Record<string, string> = {};
-      for (const p of data) map[p.id] = p.full_name ?? p.id.slice(0, 8) + "\u2026";
-      setProfilesMap(map);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTasks();
-    fetchAreas();
-    fetchProfiles();
-  }, [fetchTasks, fetchAreas, fetchProfiles]);
-
-  // ── Realtime ───────────────────────────────────────────────────────────────
-
-  const fetchTasksRef = useRef(fetchTasks);
-  useEffect(() => { fetchTasksRef.current = fetchTasks; }, [fetchTasks]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("tasks-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => fetchTasksRef.current())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  // ── Status change (optimistic) ─────────────────────────────────────────────
-
-  async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task || task.status === newStatus) return;
-    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatus } : t));
-    const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId);
-    if (error) {
-      setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: task.status } : t));
-    }
-  }
-
-  async function moveTask(taskId: string, direction: 1 | -1) {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-    const currentIndex = STATUS_ORDER.indexOf(task.status);
-    const nextIndex = currentIndex + direction;
-    if (nextIndex < 0 || nextIndex >= STATUS_ORDER.length) return;
-    await updateTaskStatus(taskId, STATUS_ORDER[nextIndex]);
-  }
-
-  async function deleteTask(taskId: string) {
-    const snapshot = tasks.find((t) => t.id === taskId);
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
-    if (error && snapshot) {
-      setTasks((prev) => [snapshot, ...prev]);
-    }
-  }
-
-  async function reopenTask(taskId: string, note: string) {
-    await updateTaskStatus(taskId, "en_progreso");
-    if (note.trim()) {
-      await supabase.from("task_activities").insert({
-        task_id: taskId,
-        event_type: "status_changed",
-        old_status: "completada",
-        new_status: "en_progreso",
-        note: note.trim(),
-      });
-    }
-  }
 
   // ── Drag handlers ──────────────────────────────────────────────────────────
 
@@ -183,7 +71,7 @@ export default function TareasPage() {
     const targetStatus = over.id as TaskStatus;
     // Completed tasks cannot be dragged back to pendiente
     if (task?.status === "completada" && targetStatus === "pendiente") return;
-    updateTaskStatus(active.id as string, targetStatus);
+    updateStatus(active.id as string, targetStatus);
   }
 
   // ── Open add modal ─────────────────────────────────────────────────────────

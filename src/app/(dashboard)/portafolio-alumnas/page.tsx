@@ -1,105 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Avatar, AvatarFallback, useOverlayState } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { createClient } from "@/lib/supabase/client";
-import {
-  type Student,
-  type Generation,
-  type StudentStatus,
-  STATUS_LABELS,
-  STATUS_COLORS,
-} from "./_types";
+import { useStudents } from "@/hooks/use-students";
+import { useGenerations } from "@/hooks/use-generations";
+import { STATUS_LABELS } from "@/domain/students/constants";
+import type { Student, StudentStatus } from "@/domain/students/types";
 import StudentModal from "./_components/StudentModal";
 import CsvUploadModal from "./_components/CsvUploadModal";
 import GenerationModal from "./_components/GenerationModal";
-
-const supabase = createClient();
+import StatusCell from "./_components/StatusCell";
 
 const STATUS_FILTER_OPTIONS: (StudentStatus | "todas")[] = ["todas", "activa", "egresada", "baja"];
 
 const PER_PAGE = 10;
 
-// ── Inline status dropdown ────────────────────────────────────────────────────
-function StatusCell({
-  student,
-  onUpdate,
-}: {
-  student: Student;
-  onUpdate: (id: string, status: StudentStatus) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const sc = STATUS_COLORS[student.status];
-
-  useEffect(() => {
-    if (!open) return;
-    function onOutside(e: MouseEvent) {
-      if (btnRef.current && !btnRef.current.closest("[data-status-cell]")?.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onOutside);
-    return () => document.removeEventListener("mousedown", onOutside);
-  }, [open]);
-
-  function handleOpen(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    setCoords({ top: rect.bottom + 4, left: rect.left });
-    setOpen((v) => !v);
-  }
-
-  return (
-    <div data-status-cell="true" className="relative">
-      <button
-        ref={btnRef}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={handleOpen}
-        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-opacity hover:opacity-80 cursor-pointer"
-        style={{ backgroundColor: sc.bg, color: sc.color }}
-      >
-        {STATUS_LABELS[student.status]}
-        <Icon icon="material-symbols:arrow-drop-down" className="text-sm -mr-0.5" />
-      </button>
-
-      {open && (
-        <div
-          onPointerDown={(e) => e.stopPropagation()}
-          className="fixed z-50 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-lg py-1 min-w-[130px]"
-          style={{ top: coords.top, left: coords.left }}
-        >
-          {(Object.entries(STATUS_LABELS) as [StudentStatus, string][]).map(([val, label]) => {
-            const c = STATUS_COLORS[val];
-            return (
-              <button
-                key={val}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpen(false);
-                  onUpdate(student.id, val);
-                }}
-                className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-[var(--color-surface-container-low)] transition-colors ${val === student.status ? "font-semibold" : ""}`}
-              >
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PortafolioAlumnasPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [generations, setGenerations] = useState<Generation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { students, loading, fetchStudents, updateStatus } = useStudents();
+  const { generations, fetchGenerations } = useGenerations();
   const [activeGen, setActiveGen] = useState<string>("");
   const [activeStatus, setActiveStatus] = useState<StudentStatus | "todas">("todas");
   const [search, setSearch] = useState("");
@@ -110,43 +30,15 @@ export default function PortafolioAlumnasPage() {
   const csvModalState = useOverlayState();
   const genModalState = useOverlayState();
 
-  // ── Fetch data ─────────────────────────────────────────────────────────────
-  const fetchStudentsRef = useRef<() => void>(() => {});
-  const fetchStudents = useCallback(async () => {
-    const { data } = await supabase
-      .from("students")
-      .select("*")
-      .order("full_name", { ascending: true });
-    if (data) setStudents(data as Student[]);
-  }, []);
-  fetchStudentsRef.current = fetchStudents;
-
-  const fetchGenerations = useCallback(async () => {
-    const { data } = await supabase
-      .from("generations")
-      .select("*")
-      .order("name", { ascending: false });
-    if (data && data.length > 0) {
-      setGenerations(data as Generation[]);
-      setActiveGen((prev) => prev || (data[0] as Generation).name);
+  // Set active generation when generations load
+  useEffect(() => {
+    if (generations.length > 0 && !activeGen) {
+      setActiveGen(generations[0].name);
     }
-  }, []);
+  }, [generations, activeGen]);
 
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([fetchStudents(), fetchGenerations()]).finally(() => setLoading(false));
-  }, [fetchStudents, fetchGenerations]);
-
-  // ── Realtime ───────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const channel = supabase
-      .channel("students-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "students" }, () => {
-        fetchStudentsRef.current();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+  // Kick off initial fetch
+  useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
   // ── Filter + paginate ──────────────────────────────────────────────────────
   const filtered = students.filter((s) => {
@@ -189,20 +81,13 @@ export default function PortafolioAlumnasPage() {
     studentModalState.open();
   }
 
-  // ── Optimistic status update ───────────────────────────────────────────────
-  async function updateStatus(id: string, status: StudentStatus) {
-    const prev = students.find((s) => s.id === id);
-    setStudents((list) => list.map((s) => (s.id === id ? { ...s, status } : s)));
-    const { error } = await supabase.from("students").update({ status }).eq("id", id);
-    if (error && prev) setStudents((list) => list.map((s) => (s.id === id ? prev : s)));
-  }
-
   // ── Generation created callback ────────────────────────────────────────────
   async function onGenerationCreated(name: string) {
     await fetchGenerations();
     setActiveGen(name);
     setPage(1);
   }
+
 
   // ── Initials helper ────────────────────────────────────────────────────────
   function initials(name: string) {

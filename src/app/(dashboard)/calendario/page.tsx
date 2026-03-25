@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button, Chip, Skeleton, useOverlayState } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { createClient } from "@/lib/supabase/client";
-import type { Area, Event } from "./_types";
-import { getEventColor, formatTime } from "./_types";
+import type { CalendarEvent } from "@/domain/calendar/types";
+import { getEventColor, formatTime } from "@/domain/calendar/helpers";
+import { useEvents } from "@/hooks/use-events";
+import { useAreas } from "@/hooks/use-areas";
 import EventDetailModal from "./_components/EventDetailModal";
 import AddEventModal from "./_components/AddEventModal";
 
@@ -15,20 +16,17 @@ const MONTH_NAMES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-const supabase = createClient();
-
 export default function CalendarioPage() {
-
-  const [events, setEvents] = useState<Event[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [activeFilter, setActiveFilter] = useState("Todas");
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [addResetKey, setAddResetKey] = useState(0);
 
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
+
+  const { events, loading, fetchEvents } = useEvents(viewYear, viewMonth);
+  const { areas } = useAreas();
+  const [activeFilter, setActiveFilter] = useState("Todas");
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [addResetKey, setAddResetKey] = useState(0);
 
   const detailModal = useOverlayState();
   const addModal = useOverlayState();
@@ -42,43 +40,6 @@ export default function CalendarioPage() {
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
   while (cells.length % 7 !== 0) cells.push(null);
-
-  // ── Data fetching ──────────────────────────────────────────────────────────
-
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
-    const startOfMonth = new Date(viewYear, viewMonth, 1).toISOString();
-    const endOfMonth = new Date(viewYear, viewMonth + 1, 0, 23, 59, 59).toISOString();
-    const { data, error } = await supabase
-      .from("events")
-      .select("*, areas(id, name, color)")
-      .gte("start_at", startOfMonth)
-      .lte("start_at", endOfMonth)
-      .order("start_at", { ascending: true });
-    if (!error && data) setEvents(data as Event[]);
-    setLoading(false);
-  }, [viewYear, viewMonth]);
-
-  const fetchAreas = useCallback(async () => {
-    const { data } = await supabase.from("areas").select("*");
-    if (data) setAreas(data as Area[]);
-  }, []);
-
-  useEffect(() => { fetchAreas(); }, [fetchAreas]);
-  useEffect(() => { fetchEvents(); }, [fetchEvents]);
-
-  // ── Realtime ───────────────────────────────────────────────────────────────
-
-  const fetchEventsRef = useRef(fetchEvents);
-  useEffect(() => { fetchEventsRef.current = fetchEvents; }, [fetchEvents]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("events-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => fetchEventsRef.current())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []); // set up once — ref keeps the callback current
 
   // ── Month navigation ───────────────────────────────────────────────────────
 
@@ -98,7 +59,7 @@ export default function CalendarioPage() {
     (e) => activeFilter === "Todas" || e.areas?.name === activeFilter
   );
 
-  function getEventsForDay(day: number): Event[] {
+  function getEventsForDay(day: number): CalendarEvent[] {
     return filteredEvents.filter((e) => {
       const d = new Date(e.start_at);
       return d.getDate() === day && d.getMonth() === viewMonth && d.getFullYear() === viewYear;

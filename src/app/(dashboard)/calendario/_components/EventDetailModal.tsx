@@ -6,24 +6,22 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { createClient } from "@/lib/supabase/client";
-import type { Event } from "../_types";
-import { getEventColor, formatDateLabel } from "../_types";
+import { deleteEventAction } from "@/actions/event.actions";
+import type { CalendarEvent } from "@/domain/calendar/types";
+import { getEventColor, formatDateLabel } from "@/domain/calendar/helpers";
 
 type OverlayState = ReturnType<typeof useOverlayState>;
 
 interface Props {
   state: OverlayState;
-  event: Event | null;
+  event: CalendarEvent | null;
   onDeleted: () => void;
 }
 
 export default function EventDetailModal({ state, event, onDeleted }: Props) {
-  const supabase = createClient();
-
   async function handleDelete() {
     if (!event) return;
-    await supabase.from("events").delete().eq("id", event.id);
+    await deleteEventAction(event.id);
     state.close();
     onDeleted();
   }

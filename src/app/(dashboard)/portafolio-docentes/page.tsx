@@ -4,19 +4,7 @@ import { useState } from "react";
 import { Button, Chip, Avatar, AvatarFallback, Card, CardContent, Modal, ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalHeading, ModalBody, ModalFooter, ModalCloseTrigger, useOverlayState } from "@heroui/react";
 import { Icon } from "@iconify/react";
 
-type DocStatus = "Activo" | "Licencia" | "Nuevo";
-
-interface Teacher {
-  id: number;
-  name: string;
-  initials: string;
-  subject: string;
-  area: string;
-  email: string;
-  phone: string;
-  status: DocStatus;
-  bio: string;
-}
+import type { DocStatus, Teacher } from "@/domain/teachers/types";
 
 const statusProps: Record<DocStatus, { color: string; bg: string }> = {
   Activo: { color: "var(--color-primary)", bg: "var(--color-primary-fixed)" },

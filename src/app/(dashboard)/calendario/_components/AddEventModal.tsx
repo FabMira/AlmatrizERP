@@ -7,9 +7,10 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { createClient } from "@/lib/supabase/client";
-import type { Area, NewEventForm } from "../_types";
-import { EMPTY_FORM } from "../_types";
+import { createEventAction } from "@/actions/event.actions";
+import type { NewEventForm } from "@/domain/calendar/types";
+import type { Area } from "@/domain/shared/types";
+import { EMPTY_EVENT_FORM } from "@/domain/calendar/types";
 
 type OverlayState = ReturnType<typeof useOverlayState>;
 
@@ -39,15 +40,14 @@ const fieldClass =
   "w-full rounded-lg border border-[var(--color-outline-variant)] bg-transparent px-3 py-2 text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)] transition-colors";
 
 export default function AddEventModal({ state, areas, resetKey, onCreated }: Props) {
-  const supabase = createClient();
-  const [form, setForm] = useState<NewEventForm>(EMPTY_FORM);
+  const [form, setForm] = useState<NewEventForm>(EMPTY_EVENT_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!resetKey) return;
     const now = localNow();
-    setForm({ ...EMPTY_FORM, start_at: now, end_at: addOneHour(now), area_id: areas[0]?.id ?? "" });
+    setForm({ ...EMPTY_EVENT_FORM, start_at: now, end_at: addOneHour(now), area_id: areas[0]?.id ?? "" });
     setFormError(null);
   }, [resetKey, areas]);
 
@@ -59,16 +59,7 @@ export default function AddEventModal({ state, areas, resetKey, onCreated }: Pro
     }
     setSaving(true);
     setFormError(null);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("events").insert({
-      title: form.title.trim(),
-      description: form.description.trim() || null,
-      start_at: new Date(form.start_at).toISOString(),
-      end_at: new Date(form.end_at).toISOString(),
-      area_id: form.area_id || null,
-      meeting_link: form.meeting_link.trim() || null,
-      created_by: user?.id ?? null,
-    });
+    const { error } = await createEventAction(form);
     setSaving(false);
     if (error) { setFormError("Error al guardar. Intenta de nuevo."); return; }
     state.close();

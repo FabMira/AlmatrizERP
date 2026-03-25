@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@iconify/react";
 import { Avatar, AvatarFallback } from "@heroui/react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/infrastructure/supabase/client";
 
 const navItems = [
   { label: "Calendario", icon: "material-symbols:calendar-today-outline", href: "/calendario" },

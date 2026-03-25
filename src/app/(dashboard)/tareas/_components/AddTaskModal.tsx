@@ -7,9 +7,10 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { createClient } from "@/lib/supabase/client";
-import type { NewTaskForm, TaskStatus, TaskPriority } from "../_types";
-import { EMPTY_TASK_FORM, COLUMNS } from "../_types";
+import { createTaskAction } from "@/actions/task.actions";
+import type { NewTaskForm, TaskStatus, TaskPriority } from "@/domain/tasks/types";
+import { EMPTY_TASK_FORM, COLUMNS } from "@/domain/tasks/constants";
+import { createClient } from "@/infrastructure/supabase/client";
 
 type OverlayState = ReturnType<typeof useOverlayState>;
 
@@ -34,8 +35,6 @@ interface Props {
 const fieldClass =
   "w-full rounded-lg border border-[var(--color-outline-variant)] bg-transparent px-3 py-2 text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)] transition-colors";
 
-const supabase = createClient();
-
 export default function AddTaskModal({
   state, areas, defaultStatus, resetKey, onCreated,
 }: Props) {
@@ -45,6 +44,7 @@ export default function AddTaskModal({
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
+    const supabase = createClient();
     supabase
       .from("profiles")
       .select("id, full_name")
@@ -61,17 +61,7 @@ export default function AddTaskModal({
     if (!form.title.trim()) { setFormError("El título es obligatorio."); return; }
     setSaving(true);
     setFormError(null);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("tasks").insert({
-      title: form.title.trim(),
-      description: form.description.trim() || null,
-      priority: form.priority,
-      status: form.status,
-      area_id: form.area_id || null,
-      assigned_to: form.assigned_to || null,
-      due_date: form.due_date || null,
-      created_by: user?.id ?? null,
-    });
+    const { error } = await createTaskAction(form);
     setSaving(false);
     if (error) { setFormError("Error al guardar. Intenta de nuevo."); return; }
     state.close();

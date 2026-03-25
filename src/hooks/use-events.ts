@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/infrastructure/supabase/client";
 import { createEventRepository } from "@/infrastructure/supabase/repositories/event.repository";
 import { useRealtime } from "./use-realtime";
@@ -22,6 +22,7 @@ export function useEvents(viewYear: number, viewMonth: number) {
     }
   }, [viewYear, viewMonth]);
 
+  useEffect(() => { fetchEvents(); }, [fetchEvents]);
   useRealtime("events", fetchEvents);
 
   return { events, loading, fetchEvents };

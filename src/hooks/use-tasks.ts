@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/infrastructure/supabase/client";
 import { createTaskRepository } from "@/infrastructure/supabase/repositories/task.repository";
 import {
@@ -28,6 +28,7 @@ export function useTasks() {
     }
   }, []);
 
+  useEffect(() => { fetchTasks(); }, [fetchTasks]);
   useRealtime("tasks", fetchTasks);
 
   async function updateStatus(taskId: string, newStatus: TaskStatus) {

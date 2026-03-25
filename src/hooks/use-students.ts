@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/infrastructure/supabase/client";
 import { createStudentRepository } from "@/infrastructure/supabase/repositories/student.repository";
 import { updateStudentStatusAction } from "@/actions/student.actions";
@@ -22,6 +22,7 @@ export function useStudents() {
     }
   }, []);
 
+  useEffect(() => { fetchStudents(); }, [fetchStudents]);
   useRealtime("students", fetchStudents);
 
   async function updateStatus(id: string, status: StudentStatus) {

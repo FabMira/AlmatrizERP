@@ -7,8 +7,8 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { createTaskAction } from "@/actions/task.actions";
-import type { NewTaskForm, TaskStatus, TaskPriority } from "@/domain/tasks/types";
+import { createTaskAction, updateTaskAction } from "@/actions/task.actions";
+import type { NewTaskForm, TaskStatus, TaskPriority, Task } from "@/domain/tasks/types";
 import { EMPTY_TASK_FORM, COLUMNS } from "@/domain/tasks/constants";
 import { createClient } from "@/infrastructure/supabase/client";
 
@@ -30,14 +30,17 @@ interface Props {
   defaultStatus: TaskStatus;
   resetKey: number;
   onCreated: () => void;
+  task?: Task;
+  onUpdated?: () => void;
 }
 
 const fieldClass =
   "w-full rounded-lg border border-[var(--color-outline-variant)] bg-transparent px-3 py-2 text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)] transition-colors";
 
 export default function AddTaskModal({
-  state, areas, defaultStatus, resetKey, onCreated,
+  state, areas, defaultStatus, resetKey, onCreated, task, onUpdated,
 }: Props) {
+  const isEditing = !!task;
   const [form, setForm] = useState<NewTaskForm>({ ...EMPTY_TASK_FORM, status: defaultStatus });
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [saving, setSaving] = useState(false);
@@ -52,6 +55,21 @@ export default function AddTaskModal({
   }, []);
 
   useEffect(() => {
+    if (task) {
+      setForm({
+        title: task.title,
+        description: task.description ?? "",
+        priority: task.priority,
+        status: task.status,
+        area_id: task.area_id ?? "",
+        assigned_to: task.assigned_to ?? "",
+        due_date: task.due_date ?? "",
+      });
+      setFormError(null);
+    }
+  }, [task]);
+
+  useEffect(() => {
     if (!resetKey) return;
     setForm({ ...EMPTY_TASK_FORM, status: defaultStatus, area_id: areas[0]?.id ?? "" });
     setFormError(null);
@@ -61,11 +79,19 @@ export default function AddTaskModal({
     if (!form.title.trim()) { setFormError("El título es obligatorio."); return; }
     setSaving(true);
     setFormError(null);
-    const { error } = await createTaskAction(form);
-    setSaving(false);
-    if (error) { setFormError("Error al guardar. Intenta de nuevo."); return; }
-    state.close();
-    onCreated();
+    if (isEditing && task) {
+      const { error } = await updateTaskAction(task.id, form);
+      setSaving(false);
+      if (error) { setFormError("Error al guardar. Intenta de nuevo."); return; }
+      state.close();
+      onUpdated?.();
+    } else {
+      const { error } = await createTaskAction(form);
+      setSaving(false);
+      if (error) { setFormError("Error al guardar. Intenta de nuevo."); return; }
+      state.close();
+      onCreated();
+    }
   }
 
   return (
@@ -74,7 +100,7 @@ export default function AddTaskModal({
         <ModalContainer size="md">
           <ModalDialog>
             <ModalHeader>
-              <ModalHeading>Nueva Tarea</ModalHeading>
+              <ModalHeading>{isEditing ? "Editar Tarea" : "Nueva Tarea"}</ModalHeading>
               <ModalCloseTrigger />
             </ModalHeader>
             <ModalBody>
@@ -182,7 +208,7 @@ export default function AddTaskModal({
                 {saving && (
                   <Icon icon="material-symbols:progress-activity" className="text-lg animate-spin" />
                 )}
-                {saving ? "Guardando..." : "Guardar Tarea"}
+                {saving ? "Guardando..." : isEditing ? "Guardar Cambios" : "Guardar Tarea"}
               </Button>
             </ModalFooter>
           </ModalDialog>

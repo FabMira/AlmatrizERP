@@ -26,6 +26,7 @@ interface TaskCardProps {
   onMove: (taskId: string, direction: 1 | -1) => void;
   onDelete?: (taskId: string) => void;
   onReopen?: (taskId: string, note: string) => void;
+  onEdit?: (task: Task) => void;
   overlay?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -47,6 +48,7 @@ interface TaskCardProps {
 export function TaskCardContent({
   task,
   onMove,
+  onEdit,
   overlay = false,
   isExpanded = false,
   onToggleExpand,
@@ -270,6 +272,20 @@ export function TaskCardContent({
         <div className="overflow-hidden">
           <div className="px-4 pb-4 pt-0 border-t border-[var(--color-outline-variant)] mt-0">
             <div className="pt-3 space-y-3">
+              {/* Edit button */}
+              {!overlay && (
+                <div className="flex justify-end">
+                  <button
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); onEdit?.(task); }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-container)] transition-colors cursor-pointer"
+                  >
+                    <Icon icon="material-symbols:edit-outline" className="text-sm" />
+                    Editar
+                  </button>
+                </div>
+              )}
+
               {/* Description */}
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-outline)] mb-1">
@@ -382,10 +398,15 @@ export function TaskCardContent({
                       <div className="space-y-3">
                         {activities.map((activity) => {
                           const statusKey = (activity.new_status ?? "") as TaskStatus;
-                          const dotColor = STATUS_DOT_COLORS[statusKey] ?? "var(--color-outline)";
+                          const dotColor =
+                            activity.event_type === "updated"
+                              ? "var(--color-secondary)"
+                              : STATUS_DOT_COLORS[statusKey] ?? "var(--color-outline)";
                           const label =
                             activity.event_type === "created"
                               ? `Creada en ${STATUS_LABELS[statusKey] ?? statusKey}`
+                              : activity.event_type === "updated"
+                              ? "Editada"
                               : `Movida a ${STATUS_LABELS[statusKey] ?? statusKey}`;
                           return (
                             <div key={activity.id} className="flex gap-2.5 relative">
@@ -434,6 +455,7 @@ export function DraggableTaskCard({
   onMove,
   onDelete,
   onReopen,
+  onEdit,
   isExpanded,
   onToggleExpand,
   profilesMap,
@@ -480,6 +502,7 @@ export function DraggableTaskCard({
       <TaskCardContent
         task={task}
         onMove={onMove}
+        onEdit={onEdit}
         isExpanded={isExpanded}
         onToggleExpand={onToggleExpand}
         profilesMap={profilesMap}

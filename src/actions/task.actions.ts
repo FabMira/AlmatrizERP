@@ -31,6 +31,39 @@ export async function createTaskAction(form: NewTaskForm): Promise<{ error?: str
   }
 }
 
+export async function updateTaskAction(
+  id: string,
+  form: NewTaskForm
+): Promise<{ error?: string }> {
+  if (!form.title.trim()) return { error: "El título es obligatorio." };
+
+  const supabase = await createClient();
+  const repo = createTaskRepository(supabase);
+
+  try {
+    await repo.update(id, {
+      title: form.title.trim(),
+      description: form.description.trim() || null,
+      priority: form.priority,
+      area_id: form.area_id || null,
+      assigned_to: form.assigned_to || null,
+      due_date: form.due_date || null,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { error: msg };
+  }
+
+  // Log activity separately — don't fail the whole operation if this errors
+  try {
+    await repo.logActivity({ task_id: id, event_type: "updated" });
+  } catch {
+    // Activity log failure is non-fatal
+  }
+
+  return {};
+}
+
 export async function updateTaskStatusAction(
   id: string,
   status: TaskStatus,

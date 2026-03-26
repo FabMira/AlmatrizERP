@@ -25,6 +25,18 @@ export function createTaskRepository(supabase: SupabaseClient) {
       if (error) throw error;
     },
 
+    async update(id: string, data: {
+      title: string;
+      description: string | null;
+      priority: string;
+      area_id: string | null;
+      assigned_to: string | null;
+      due_date: string | null;
+    }): Promise<void> {
+      const { error } = await supabase.from("tasks").update(data).eq("id", id);
+      if (error) throw error;
+    },
+
     async updateStatus(id: string, status: TaskStatus): Promise<void> {
       const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
       if (error) throw error;
@@ -37,7 +49,7 @@ export function createTaskRepository(supabase: SupabaseClient) {
 
     async logActivity(payload: {
       task_id: string;
-      event_type: "created" | "status_changed";
+      event_type: "created" | "status_changed" | "updated";
       old_status?: string | null;
       new_status?: string | null;
       note?: string | null;

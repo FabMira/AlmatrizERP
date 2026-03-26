@@ -18,7 +18,7 @@ export interface Task {
 export interface TaskActivity {
   id: string;
   task_id: string;
-  event_type: "created" | "status_changed";
+  event_type: "created" | "status_changed" | "updated";
   old_status: string | null;
   new_status: string | null;
   note: string | null;

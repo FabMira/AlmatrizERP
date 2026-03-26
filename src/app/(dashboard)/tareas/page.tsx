@@ -48,6 +48,7 @@ export default function TareasPage() {
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>("pendiente");
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -55,6 +56,7 @@ export default function TareasPage() {
   );
 
   const addModal = useOverlayState();
+  const editModal = useOverlayState();
 
   // ── Drag handlers ──────────────────────────────────────────────────────────
 
@@ -80,6 +82,11 @@ export default function TareasPage() {
     setDefaultStatus(status);
     setAddResetKey((k) => k + 1);
     addModal.open();
+  }
+
+  function openEditModal(task: Task) {
+    setEditingTask(task);
+    editModal.open();
   }
 
   // ── Filtering ──────────────────────────────────────────────────────────────
@@ -172,6 +179,7 @@ export default function TareasPage() {
                           onMove={moveTask}
                           onDelete={deleteTask}
                           onReopen={reopenTask}
+                          onEdit={openEditModal}
                           isExpanded={expandedTaskId === task.id}
                           onToggleExpand={() =>
                             setExpandedTaskId((prev) => (prev === task.id ? null : task.id))
@@ -208,6 +216,15 @@ export default function TareasPage() {
         defaultStatus={defaultStatus}
         resetKey={addResetKey}
         onCreated={fetchTasks}
+      />
+      <AddTaskModal
+        state={editModal}
+        areas={areas}
+        defaultStatus={defaultStatus}
+        resetKey={0}
+        onCreated={fetchTasks}
+        task={editingTask ?? undefined}
+        onUpdated={fetchTasks}
       />
     </div>
   );

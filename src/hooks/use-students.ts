@@ -17,6 +17,8 @@ export function useStudents() {
     try {
       const data = await repo.findAll();
       setStudents(data);
+    } catch {
+      // silently ignore fetch errors (e.g. network / RLS)
     } finally {
       setLoading(false);
     }

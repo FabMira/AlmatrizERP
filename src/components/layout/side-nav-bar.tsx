@@ -10,6 +10,7 @@ import { createClient } from "@/infrastructure/supabase/client";
 const navItems = [
   { label: "Calendario", icon: "material-symbols:calendar-today-outline", href: "/calendario" },
   { label: "Tareas", icon: "material-symbols:assignment-outline", href: "/tareas" },
+  { label: "Actas de Reunión", icon: "material-symbols:description-outline", href: "/actas" },
   { label: "Portafolio Alumnas", icon: "material-symbols:school-outline", href: "/portafolio-alumnas" },
   { label: "Portafolio Docentes", icon: "material-symbols:menu-book-outline", href: "/portafolio-docentes" },
   { label: "Links Importantes", icon: "material-symbols:link-outline", href: "/links" },

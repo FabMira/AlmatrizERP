@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Button, Card, CardContent } from "@heroui/react";
 import { Icon } from "@iconify/react";
 
@@ -41,6 +42,7 @@ const quickActions = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
   // TODO: replace with API data
   const barData: BarEntry[] = [];
   const activities: Activity[] = [];
@@ -168,6 +170,9 @@ export default function DashboardPage() {
               {quickActions.map((action, i) => (
                 <button
                   key={i}
+                  onClick={() => {
+                    if (i === 0) router.push("/actas");
+                  }}
                   className="flex items-center gap-3 p-3 rounded-xl border border-[var(--color-outline-variant)] hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-container-low)] transition-all text-left group"
                 >
                   <div

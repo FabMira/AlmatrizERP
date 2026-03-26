@@ -49,9 +49,8 @@ export async function updateTaskAction(
       assigned_to: form.assigned_to || null,
       due_date: form.due_date || null,
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { error: msg };
+  } catch {
+    return { error: "Error al guardar. Intenta de nuevo." };
   }
 
   // Log activity separately — don't fail the whole operation if this errors

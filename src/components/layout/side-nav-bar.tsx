@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@heroui/react";
 import { createClient } from "@/infrastructure/supabase/client";
 
 const navItems = [
+  { label: "Inicio", icon: "material-symbols:home-outline", href: "/" },
   { label: "Calendario", icon: "material-symbols:calendar-today-outline", href: "/calendario" },
   { label: "Tareas", icon: "material-symbols:assignment-outline", href: "/tareas" },
   { label: "Actas de Reunión", icon: "material-symbols:description-outline", href: "/actas" },
@@ -110,13 +111,14 @@ export default function SideNavBar({ activePath }: SideNavBarProps) {
 
             {/* Actions */}
             <div className="p-2">
-              <button
+              <Link
+                href="/perfil"
                 onClick={() => { setProfileOpen(false); }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors text-left"
               >
                 <Icon icon="material-symbols:manage-accounts-outline" className="text-lg text-slate-400" />
                 <span>Mi Perfil</span>
-              </button>
+              </Link>
               <button
                 onClick={() => { setProfileOpen(false); handleLogout(); }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left"

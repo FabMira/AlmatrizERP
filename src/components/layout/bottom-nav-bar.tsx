@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Icon } from "@iconify/react";
 
 const bottomItems = [
-  { label: "Inicio", icon: "material-symbols:calendar-today-outline", href: "/calendario" },
+  { label: "Inicio", icon: "material-symbols:home-outline", href: "/" },
   { label: "Tareas", icon: "material-symbols:assignment-outline", href: "/tareas" },
   { label: "Alumnas", icon: "material-symbols:school-outline", href: "/portafolio-alumnas" },
   { label: "Admin", icon: "material-symbols:settings-outline", href: "/administracion" },

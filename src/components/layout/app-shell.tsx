@@ -16,6 +16,7 @@ const pageTitles: Record<string, string> = {
   "/links": "Links Importantes",
   "/administracion": "Administración",
   "/administracion/contabilidad": "Contabilidad",
+  "/perfil": "Mi Perfil",
 };
 
 interface AppShellProps {

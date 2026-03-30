@@ -8,7 +8,7 @@ import {
 import { Icon } from "@iconify/react";
 import { deleteEventAction } from "@/actions/event.actions";
 import type { CalendarEvent } from "@/domain/calendar/types";
-import { getEventColor, formatDateLabel } from "@/domain/calendar/helpers";
+import { getEventColor, formatDateLabel, downloadICS, googleCalendarUrl } from "@/domain/calendar/helpers";
 
 type OverlayState = ReturnType<typeof useOverlayState>;
 
@@ -73,6 +73,29 @@ export default function EventDetailModal({ state, event, onDeleted }: Props) {
                         </a>
                       </div>
                     )}
+
+                    {/* Share to external calendar */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-[var(--color-outline-variant)]">
+                      <span className="text-xs text-[var(--color-on-surface-variant)] mr-1">Agregar a:</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 text-xs"
+                        onPress={() => window.open(googleCalendarUrl(event), "_blank")}
+                      >
+                        <Icon icon="mdi:google" className="text-base" />
+                        Google
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 text-xs"
+                        onPress={() => downloadICS(event)}
+                      >
+                        <Icon icon="mdi:apple" className="text-base" />
+                        iOS / iCal
+                      </Button>
+                    </div>
                   </div>
                 </ModalBody>
                 <ModalFooter>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Avatar, AvatarFallback, Button } from "@heroui/react";
 import { Icon } from "@iconify/react";
 
@@ -56,9 +57,11 @@ export default function TopNavBar({ title, onMenuToggle }: TopNavBarProps) {
       </div>
 
       {/* User avatar */}
-      <Avatar size="sm" className="bg-cyan-500 text-white cursor-pointer">
-        <AvatarFallback>A</AvatarFallback>
-      </Avatar>
+      <Link href="/perfil">
+        <Avatar size="sm" className="bg-cyan-500 text-white cursor-pointer">
+          <AvatarFallback>A</AvatarFallback>
+        </Avatar>
+      </Link>
     </header>
   );
 }

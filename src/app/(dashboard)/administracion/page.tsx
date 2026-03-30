@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
 
@@ -117,6 +118,20 @@ export default function AdministracionPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 pb-28">
+      {/* Contabilidad card */}
+      <Link href="/administracion/contabilidad">
+        <div className="rounded-2xl bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-container)] p-5 flex items-center gap-4 hover:opacity-90 transition-opacity">
+          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+            <Icon icon="material-symbols:account-balance-outline" className="text-2xl text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-bold text-white">Módulo de Contabilidad</h2>
+            <p className="text-xs text-white/80">Libro diario, gastos, transbank, pagos de programas y más</p>
+          </div>
+          <Icon icon="material-symbols:arrow-forward" className="text-xl text-white flex-shrink-0" />
+        </div>
+      </Link>
+
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {stats.map((s) => (

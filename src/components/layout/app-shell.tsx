@@ -15,6 +15,7 @@ const pageTitles: Record<string, string> = {
   "/portafolio-docentes": "Portafolio Docentes",
   "/links": "Links Importantes",
   "/administracion": "Administración",
+  "/administracion/contabilidad": "Contabilidad",
 };
 
 interface AppShellProps {
@@ -30,7 +31,9 @@ export default function AppShell({
 }: AppShellProps) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const pathname = usePathname();
-  const title = pageTitles[pathname] ?? "AlmatrizERP";
+  const title =
+    pageTitles[pathname] ??
+    (pathname.startsWith("/administracion/contabilidad") ? "Contabilidad" : "AlmatrizERP");
 
   return (
     <div className="min-h-screen bg-[var(--color-surface)]">

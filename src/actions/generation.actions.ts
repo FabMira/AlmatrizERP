@@ -11,6 +11,8 @@ export async function createGenerationAction(
   if (!trimmed) return { error: "El nombre de la generación es obligatorio." };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createGenerationRepository(supabase);
 
   try {

@@ -38,6 +38,8 @@ export async function updateTaskAction(
   if (!form.title.trim()) return { error: "El título es obligatorio." };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createTaskRepository(supabase);
 
   try {
@@ -69,6 +71,8 @@ export async function updateTaskStatusAction(
   prevStatus?: TaskStatus
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createTaskRepository(supabase);
 
   try {
@@ -89,6 +93,8 @@ export async function updateTaskStatusAction(
 
 export async function deleteTaskAction(id: string): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createTaskRepository(supabase);
 
   try {
@@ -104,6 +110,8 @@ export async function reopenTaskAction(
   note: string
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createTaskRepository(supabase);
 
   try {

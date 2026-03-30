@@ -8,6 +8,8 @@ export async function createTeacherAction(form: TeacherForm): Promise<{ error?: 
   if (!form.full_name.trim()) return { error: "El nombre completo es obligatorio." };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createTeacherRepository(supabase);
 
   try {
@@ -35,6 +37,8 @@ export async function updateTeacherAction(
   if (!form.full_name.trim()) return { error: "El nombre completo es obligatorio." };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createTeacherRepository(supabase);
 
   try {
@@ -57,6 +61,8 @@ export async function updateTeacherAction(
 
 export async function deleteTeacherAction(id: string): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createTeacherRepository(supabase);
 
   try {
@@ -72,6 +78,8 @@ export async function updateTeacherStatusAction(
   status: TeacherStatus
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createTeacherRepository(supabase);
 
   try {

@@ -36,6 +36,8 @@ export async function createEventAction(form: NewEventForm): Promise<{ error?: s
 
 export async function deleteEventAction(id: string): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createEventRepository(supabase);
 
   try {

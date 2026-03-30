@@ -114,6 +114,8 @@ export async function deleteAccountingRecordAction(
   const table = resolveTable(section);
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createAccountingRepository(supabase);
 
   try {

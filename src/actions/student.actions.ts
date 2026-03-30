@@ -9,6 +9,8 @@ export async function createStudentAction(form: StudentForm): Promise<{ error?: 
   if (!form.generation) return { error: "La generación es obligatoria." };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createStudentRepository(supabase);
 
   try {
@@ -35,6 +37,8 @@ export async function updateStudentAction(
   if (!form.generation) return { error: "La generación es obligatoria." };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createStudentRepository(supabase);
 
   try {
@@ -55,6 +59,8 @@ export async function updateStudentAction(
 
 export async function deleteStudentAction(id: string): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createStudentRepository(supabase);
 
   try {
@@ -70,6 +76,8 @@ export async function updateStudentStatusAction(
   status: StudentStatus
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createStudentRepository(supabase);
 
   try {
@@ -92,6 +100,8 @@ export async function importStudentsCsvAction(
   if (rows.length === 0) return { error: "No hay filas válidas para importar." };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createStudentRepository(supabase);
 
   try {

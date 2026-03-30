@@ -4,6 +4,8 @@ import { createClient } from "@/infrastructure/supabase/server";
 import { createMinuteRepository } from "@/infrastructure/supabase/repositories/minute.repository";
 import type { NewMinuteForm } from "@/domain/minutes/types";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function parseAttendees(raw: string): string[] {
   return raw
     .split(",")
@@ -40,10 +42,13 @@ export async function updateMinuteAction(
   id: string,
   form: NewMinuteForm
 ): Promise<{ error?: string }> {
+  if (!UUID_RE.test(id)) return { error: "ID inválido." };
   if (!form.title.trim()) return { error: "El título es obligatorio." };
   if (!form.meeting_date) return { error: "La fecha es obligatoria." };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createMinuteRepository(supabase);
 
   try {
@@ -64,6 +69,8 @@ export async function updateMinuteAction(
 export async function deleteMinuteAction(
   id: string
 ): Promise<{ error?: string }> {
+  if (!UUID_RE.test(id)) return { error: "ID inválido." };
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado." };

@@ -4,6 +4,8 @@ import { createClient } from "@/infrastructure/supabase/server";
 import { createLinkRepository } from "@/infrastructure/supabase/repositories/link.repository";
 import type { NewLinkForm } from "@/domain/links/types";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function createLinkAction(form: NewLinkForm): Promise<{ error?: string }> {
   if (!form.title.trim()) return { error: "El título es obligatorio." };
   if (!form.url.trim()) return { error: "La URL es obligatoria." };
@@ -42,7 +44,11 @@ export async function createLinkAction(form: NewLinkForm): Promise<{ error?: str
 }
 
 export async function deleteLinkAction(id: string): Promise<{ error?: string }> {
+  if (!UUID_RE.test(id)) return { error: "ID inválido." };
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createLinkRepository(supabase);
 
   try {
@@ -58,7 +64,11 @@ export async function togglePinLinkAction(
   id: string,
   pinned: boolean
 ): Promise<{ error?: string }> {
+  if (!UUID_RE.test(id)) return { error: "ID inválido." };
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createLinkRepository(supabase);
 
   try {
@@ -87,7 +97,11 @@ export async function updateLinkAction(
     return { error: "La URL debe comenzar con https:// o http://" };
   }
 
+  if (!UUID_RE.test(id)) return { error: "ID inválido." };
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado." };
   const repo = createLinkRepository(supabase);
 
   try {

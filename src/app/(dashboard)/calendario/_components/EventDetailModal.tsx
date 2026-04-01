@@ -16,9 +16,10 @@ interface Props {
   state: OverlayState;
   event: CalendarEvent | null;
   onDeleted: () => void;
+  onEdit: () => void;
 }
 
-export default function EventDetailModal({ state, event, onDeleted }: Props) {
+export default function EventDetailModal({ state, event, onDeleted, onEdit }: Props) {
   async function handleDelete() {
     if (!event) return;
     await deleteEventAction(event.id);
@@ -109,6 +110,13 @@ export default function EventDetailModal({ state, event, onDeleted }: Props) {
                   </Button>
                   <Button variant="outline" onPress={state.close}>
                     Cerrar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onPress={() => { state.close(); onEdit(); }}
+                  >
+                    <Icon icon="material-symbols:edit-outline" className="text-lg" />
+                    Editar
                   </Button>
                   {event.meeting_link && (
                     <Button

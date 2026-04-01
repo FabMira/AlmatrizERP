@@ -28,6 +28,21 @@ export function createEventRepository(supabase: SupabaseClient) {
       if (error) throw error;
     },
 
+    async update(
+      id: string,
+      form: {
+        title: string;
+        description: string | null;
+        start_at: string;
+        end_at: string;
+        area_id: string | null;
+        meeting_link: string | null;
+      }
+    ): Promise<void> {
+      const { error } = await supabase.from("events").update(form).eq("id", id);
+      if (error) throw error;
+    },
+
     async delete(id: string): Promise<void> {
       const { error } = await supabase.from("events").delete().eq("id", id);
       if (error) throw error;

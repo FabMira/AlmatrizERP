@@ -26,6 +26,7 @@ export default function CalendarioPage() {
   const { areas } = useAreas();
   const [activeFilter, setActiveFilter] = useState("Todas");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [addResetKey, setAddResetKey] = useState(0);
 
   const detailModal = useOverlayState();
@@ -60,9 +61,12 @@ export default function CalendarioPage() {
   );
 
   function getEventsForDay(day: number): CalendarEvent[] {
+    const dayStart = new Date(viewYear, viewMonth, day, 0, 0, 0, 0);
+    const dayEnd = new Date(viewYear, viewMonth, day, 23, 59, 59, 999);
     return filteredEvents.filter((e) => {
-      const d = new Date(e.start_at);
-      return d.getDate() === day && d.getMonth() === viewMonth && d.getFullYear() === viewYear;
+      const start = new Date(e.start_at);
+      const end = new Date(e.end_at);
+      return start <= dayEnd && end >= dayStart;
     });
   }
 
@@ -96,7 +100,7 @@ export default function CalendarioPage() {
         </div>
         <Button
           className="bg-[var(--color-primary)] text-white flex-shrink-0"
-          onPress={() => { setAddResetKey(k => k + 1); addModal.open(); }}
+          onPress={() => { setEditingEvent(null); setAddResetKey(k => k + 1); addModal.open(); }}
         >
           <Icon icon="material-symbols:add" className="text-lg" />
           Agregar Evento
@@ -240,12 +244,18 @@ export default function CalendarioPage() {
         state={detailModal}
         event={selectedEvent}
         onDeleted={() => { setSelectedEvent(null); fetchEvents(); }}
+        onEdit={() => {
+          setEditingEvent(selectedEvent);
+          setAddResetKey(k => k + 1);
+          addModal.open();
+        }}
       />
       <AddEventModal
         state={addModal}
         areas={areas}
         resetKey={addResetKey}
-        onCreated={fetchEvents}
+        event={editingEvent}
+        onSaved={fetchEvents}
       />
 
     </div>

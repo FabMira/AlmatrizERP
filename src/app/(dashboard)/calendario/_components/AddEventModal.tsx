@@ -19,16 +19,13 @@ interface Props {
   areas: Area[];
   resetKey: number;
   event?: CalendarEvent | null;
+  defaultDate?: Date | null;
   onSaved: () => void;
 }
 
 function toLocalDateTimeString(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function localNow(): string {
-  return toLocalDateTimeString(new Date());
 }
 
 function addMinutes(dateTimeLocal: string, minutes: number): string {
@@ -50,7 +47,7 @@ const DURATION_PRESETS = [
 const fieldClass =
   "w-full rounded-lg border border-[var(--color-outline-variant)] bg-transparent px-3 py-2 text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)] transition-colors";
 
-export default function AddEventModal({ state, areas, resetKey, event, onSaved }: Props) {
+export default function AddEventModal({ state, areas, resetKey, event, defaultDate, onSaved }: Props) {
   const [form, setForm] = useState<NewEventForm>(EMPTY_EVENT_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -68,8 +65,10 @@ export default function AddEventModal({ state, areas, resetKey, event, onSaved }
         meeting_link: event.meeting_link ?? "",
       });
     } else {
-      const now = localNow();
-      setForm({ ...EMPTY_EVENT_FORM, start_at: now, end_at: addMinutes(now, 60), area_id: areas[0]?.id ?? "" });
+      const base = defaultDate ? new Date(defaultDate) : new Date();
+      if (defaultDate) base.setHours(9, 0, 0, 0);
+      const start = toLocalDateTimeString(base);
+      setForm({ ...EMPTY_EVENT_FORM, start_at: start, end_at: addMinutes(start, 60), area_id: areas[0]?.id ?? "" });
     }
     setFormError(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps

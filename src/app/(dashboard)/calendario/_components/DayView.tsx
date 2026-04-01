@@ -137,17 +137,19 @@ export default function DayView({
     <div className="flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Back to month */}
           <Button
-            isIconOnly
-            variant="ghost"
+            variant="outline"
             size="sm"
             onPress={onBack}
-            className="text-[var(--color-on-surface)]"
+            className="gap-1.5 text-[var(--color-on-surface-variant)] border-[var(--color-outline-variant)] hover:text-[var(--color-on-surface)] flex-shrink-0"
           >
-            <Icon icon="material-symbols:calendar-month-outline" className="text-xl" />
+            <Icon icon="material-symbols:chevron-left" className="text-base" />
+            Mes
           </Button>
 
+          {/* Prev / Next day */}
           <div className="flex items-center gap-1">
             <Button
               isIconOnly

@@ -9,6 +9,7 @@ import { useEvents } from "@/hooks/use-events";
 import { useAreas } from "@/hooks/use-areas";
 import EventDetailModal from "./_components/EventDetailModal";
 import AddEventModal from "./_components/AddEventModal";
+import DayView from "./_components/DayView";
 
 const DAYS_OF_WEEK = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const MONTH_NAMES = [
@@ -26,6 +27,8 @@ export default function CalendarioPage() {
   const { areas } = useAreas();
   const [activeFilter, setActiveFilter] = useState("Todas");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [addResetKey, setAddResetKey] = useState(0);
 
   const detailModal = useOverlayState();
@@ -60,9 +63,24 @@ export default function CalendarioPage() {
   );
 
   function getEventsForDay(day: number): CalendarEvent[] {
+    const dayStart = new Date(viewYear, viewMonth, day, 0, 0, 0, 0);
+    const dayEnd = new Date(viewYear, viewMonth, day, 23, 59, 59, 999);
     return filteredEvents.filter((e) => {
-      const d = new Date(e.start_at);
-      return d.getDate() === day && d.getMonth() === viewMonth && d.getFullYear() === viewYear;
+      const start = new Date(e.start_at);
+      const end = new Date(e.end_at);
+      return start <= dayEnd && end >= dayStart;
+    });
+  }
+
+  function getEventsForDate(date: Date): CalendarEvent[] {
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+    return filteredEvents.filter((e) => {
+      const start = new Date(e.start_at);
+      const end = new Date(e.end_at);
+      return start <= dayEnd && end >= dayStart;
     });
   }
 
@@ -96,13 +114,49 @@ export default function CalendarioPage() {
         </div>
         <Button
           className="bg-[var(--color-primary)] text-white flex-shrink-0"
-          onPress={() => { setAddResetKey(k => k + 1); addModal.open(); }}
+          onPress={() => { setEditingEvent(null); setAddResetKey(k => k + 1); addModal.open(); }}
         >
           <Icon icon="material-symbols:add" className="text-lg" />
           Agregar Evento
         </Button>
       </div>
 
+      {/* Day view */}
+      {selectedDay && (
+        <DayView
+          date={selectedDay}
+          events={getEventsForDate(selectedDay)}
+          onBack={() => setSelectedDay(null)}
+          onPrevDay={() => {
+            const d = new Date(selectedDay);
+            d.setDate(d.getDate() - 1);
+            // If we cross month boundary, update viewMonth/viewYear so events load
+            if (d.getMonth() !== viewMonth || d.getFullYear() !== viewYear) {
+              setViewMonth(d.getMonth());
+              setViewYear(d.getFullYear());
+            }
+            setSelectedDay(d);
+          }}
+          onNextDay={() => {
+            const d = new Date(selectedDay);
+            d.setDate(d.getDate() + 1);
+            if (d.getMonth() !== viewMonth || d.getFullYear() !== viewYear) {
+              setViewMonth(d.getMonth());
+              setViewYear(d.getFullYear());
+            }
+            setSelectedDay(d);
+          }}
+          onEventClick={(ev) => { setSelectedEvent(ev); detailModal.open(); }}
+          onAddEvent={() => {
+            setEditingEvent(null);
+            setAddResetKey(k => k + 1);
+            addModal.open();
+          }}
+        />
+      )}
+
+      {/* Month grid + sidebar */}
+      {!selectedDay && (
       <div className="flex gap-6">
 
         {/* Calendar grid */}
@@ -144,7 +198,8 @@ export default function CalendarioPage() {
                   return (
                     <div
                       key={i}
-                      className={`min-h-[80px] rounded-xl p-1.5 border transition-colors ${
+                      onClick={() => setSelectedDay(new Date(viewYear, viewMonth, day))}
+                      className={`min-h-[80px] rounded-xl p-1.5 border transition-colors cursor-pointer ${
                         isToday
                           ? "ring-2 ring-[var(--color-primary)] bg-[var(--color-primary)]/5 border-transparent"
                           : "border-[var(--color-outline-variant)]/50 hover:bg-[var(--color-surface-container-low)]"
@@ -161,7 +216,7 @@ export default function CalendarioPage() {
                           return (
                             <button
                               key={ev.id}
-                              onClick={() => { setSelectedEvent(ev); detailModal.open(); }}
+                              onClick={(e) => { e.stopPropagation(); setSelectedEvent(ev); detailModal.open(); }}
                               className="w-full text-left text-[10px] leading-tight rounded px-1 py-0.5 truncate"
                               style={{ backgroundColor: color + "25", color }}
                             >
@@ -235,17 +290,25 @@ export default function CalendarioPage() {
           </div>
         </aside>
       </div>
+      )}
 
       <EventDetailModal
         state={detailModal}
         event={selectedEvent}
         onDeleted={() => { setSelectedEvent(null); fetchEvents(); }}
+        onEdit={() => {
+          setEditingEvent(selectedEvent);
+          setAddResetKey(k => k + 1);
+          addModal.open();
+        }}
       />
       <AddEventModal
         state={addModal}
         areas={areas}
         resetKey={addResetKey}
-        onCreated={fetchEvents}
+        event={editingEvent}
+        defaultDate={selectedDay}
+        onSaved={fetchEvents}
       />
 
     </div>

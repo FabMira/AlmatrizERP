@@ -22,8 +22,8 @@ export async function createEventAction(form: NewEventForm): Promise<{ error?: s
     await repo.create({
       title: form.title.trim(),
       description: form.description.trim() || null,
-      start_at: new Date(form.start_at).toISOString(),
-      end_at: new Date(form.end_at).toISOString(),
+      start_at: form.start_at,
+      end_at: form.end_at,
       area_id: form.area_id || null,
       meeting_link: form.meeting_link.trim() || null,
       created_by: user?.id ?? null,
@@ -50,8 +50,8 @@ export async function updateEventAction(id: string, form: NewEventForm): Promise
     await repo.update(id, {
       title: form.title.trim(),
       description: form.description.trim() || null,
-      start_at: new Date(form.start_at).toISOString(),
-      end_at: new Date(form.end_at).toISOString(),
+      start_at: form.start_at,
+      end_at: form.end_at,
       area_id: form.area_id || null,
       meeting_link: form.meeting_link.trim() || null,
     });

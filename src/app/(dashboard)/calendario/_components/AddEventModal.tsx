@@ -93,9 +93,17 @@ export default function AddEventModal({ state, areas, resetKey, event, defaultDa
     }
     setSaving(true);
     setFormError(null);
+    // Convert datetime-local strings (local time, no TZ) to UTC ISO here on the
+    // client, where the browser's timezone is known. The server must NOT do this
+    // conversion again or it will treat the value as UTC rather than local time.
+    const utcForm = {
+      ...form,
+      start_at: new Date(form.start_at).toISOString(),
+      end_at: new Date(form.end_at).toISOString(),
+    };
     const { error } = isEditing
-      ? await updateEventAction(event.id, form)
-      : await createEventAction(form);
+      ? await updateEventAction(event.id, utcForm)
+      : await createEventAction(utcForm);
     setSaving(false);
     if (error) { setFormError(error); return; }
     state.close();
